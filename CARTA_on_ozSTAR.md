@@ -8,7 +8,7 @@ SSH into OzStar as usual, then:
 
 ```bash
 tmux new -s carta
-cd /fred/oz341/skavya/scripts/carta/
+cd carta_directory
 APPIMAGE_EXTRACT_AND_RUN=1 ./carta-x86_64.AppImage --no_browser
 ```
 
@@ -27,7 +27,7 @@ Note the port (usually 3002) and the token — you need both in Step 3.
 In a **new terminal on your own laptop** (not the cluster), tunnel a local port to the internal cluster address CARTA printed:
 
 ```bash
-ssh -N -L 3002:192.168.44.13:3002 kshaji@farnarkle.hpc.swin.edu.au
+ssh -N -L 3002:192.168.44.13:3002 username@ozstar.hpc.swin.edu.au
 ```
 
 Replace the hostname with whatever you normally use to SSH into OzStar, and match both ports to whatever CARTA actually printed if it differs from 3002. `-N` just holds the tunnel open with no remote command — leave this terminal running for as long as you want to use CARTA.
