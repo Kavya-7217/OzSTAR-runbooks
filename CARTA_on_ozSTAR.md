@@ -8,7 +8,7 @@ SSH into OzStar as usual, then:
 
 ```bash
 tmux new -s carta
-cd carta_directory
+cd /fred/oz341/skavya/scripts/carta/
 APPIMAGE_EXTRACT_AND_RUN=1 ./carta-x86_64.AppImage --no_browser
 ```
 
