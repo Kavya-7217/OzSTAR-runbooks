@@ -13,7 +13,7 @@ conda activate /fred/oz002/skavya/miniconda3/envs/ms_flags
 Example:
 
 ```bash
-/fred/oz341/skavya/scripts/flag_timerange.py 1773330393_2026-09-09T23-59-12_fkb.ms -s 3 -n 1
+python /fred/oz341/skavya/scripts/flag_timerange.py 1773330393_2026-09-09T23-59-12_fkb.ms -s 3 -n 1
 ```
 
 Here:
