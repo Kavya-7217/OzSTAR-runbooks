@@ -1,38 +1,28 @@
-# B1259 component rotation measures on OzSTAR
+# Component RM on OzSTAR with native PSRSALSA
 
-[RMSYNTH_v2_PSRSALSA.ipynb](RMSYNTH_v2_PSRSALSA.ipynb) measures rotation measure (RM) from folded, full-Stokes pulsar archives. It runs two analyses on each archive and writes separate results for each detected pulse component.
+[RMSYNTH_v2_PSRSALSA.ipynb](RMSYNTH_v2_PSRSALSA.ipynb) identifies pulse components from a Parkes archive and runs the installed PSRSALSA `rmsynth` program separately for each component. Python selects the phase bins. PSRSALSA reads the original archive and computes every RM result.
 
-## What happens with the current settings?
+## Run on OzSTAR
 
-1. PSRCHIVE converts the archive to Stokes parameters, dedisperses at the header DM and averages the subintegrations. The notebook sorts channels by frequency and identifies usable channels from their weights and finite data.
-2. The notebook smooths the band-averaged Stokes I profile and searches for up to two significant peaks. A gate extends to the two-sigma baseline crossing or the valley between peaks. Two detected components are labelled leading and trailing in archive phase order. The original analysis plots these gates for inspection.
-3. The original analysis subtracts the off-pulse baseline and sums Q + iU across each gate before measuring its Faraday spectrum. It refines the sampled maximum with a three-point parabola and estimates uncertainty from 500 draws of measured off-pulse spectra. Its trial grid represents total RM and accounts for an RM already removed from the archive.
-4. The PSRSALSA-style analysis forms a Faraday spectrum for each selected longitude bin and adds their amplitudes within each gate. It fits a shifted instrumental response, with free scale and offset, to the collapsed spectrum. This keeps emission with opposite polarisation vectors in different bins from cancelling in the gate sum. This branch requires an archive before Faraday correction and assumes the baseline has already been removed.
-5. The PSRSALSA-style branch calculates an analytic error from the fitted-RM derotated profile, debiased linear polarisation and nominal channel frequencies. Its Gaussian bootstrap is disabled by default. When enabled, each draw adds independent Q and U noise using the channel’s off-pulse Stokes I standard deviation and refits the spectrum. The reported uncertainty is the population standard deviation of those fitted RMs.
+Start Jupyter in the environment used for your PSRSALSA build. The kernel needs PSRCHIVE’s Python bindings, NumPy and Matplotlib. The executable needs its usual shared libraries and PGPLOT colour PostScript driver.
 
-## Run the notebook
+```bash
+module load gcc/11.3.0 fftw/3.3.10 gsl/2.7 cfitsio/4.2.0
+conda activate psrsalsa_env
+```
 
-Use a Jupyter Python kernel with PSRCHIVE, NumPy, Matplotlib and a working C compiler available as `cc`. The notebook compiles its bundled upstream simplex optimiser in a temporary directory. Set `INPUT` to one archive or an archive directory and run the cells in order. In directory mode the default extension is `.center`. Both analysis branches are enabled. For the synthetic check alone, set `RUN_ORIGINAL = RUN_COMPARISON = False`.
+Set `INPUT` to a single archive or a directory. Directory mode selects files ending in `EXTENSION` (default `.center`). Use baseline-subtracted, full-Stokes data with one integrated subintegration and with Faraday rotation still present. Run the notebook cells in order.
 
-| Setting | Current value or behaviour |
-| --- | --- |
-| `FREQ_MHZ` | Full band |
-| `RM_LIMITS`, `GRID_POINTS` | −10,000 to +10,000 rad/m², 20,000 samples including endpoints |
-| `REGIONS` | Automatic detection. Override the comparison gates with e.g. `{"leading": [(80, 91)], "trailing": [(104, 115)]}`. Bin indices are zero-based and inclusive. |
-| `ONPULSE2` | Union of comparison gates. Its complement supplies the noise samples. Override independently to match the C run. The original branch uses its own padded off-pulse mask. |
-| `PS_GRID`, `FTOL` | Same initial grid as the original branch, fit tolerance 0.001 |
-| `PS_DRAWS`, `SEED` | 0 draws, seed 42. Use at least 2 draws to report a Gaussian-bootstrap error. |
-| `PS_LONG` | False. Per-bin spectra are saved. Set True for individual bin RM fits and uncertainties. |
-| `SUBTRACT_BASELINE` | False for the comparison. Set True to subtract the per-channel mean outside `ONPULSE2`. |
+## What the notebook measures
 
-## Read the outputs
+1. **Find the gates.** PSRCHIVE supplies a dedispersed, channel-weighted Stokes I profile. The notebook smooths it and selects up to two significant peaks. A valley separates resolved components. It labels two peaks leading and trailing in archive phase order. If it finds no peak, it saves the profile and skips the RM fit.
+2. **Pass the gates to PSRSALSA.** Each component becomes its own `-onpulse` selection. The union of the detected components becomes `-onpulse2` in every call. PSRSALSA uses this second window for integrated signal and its complement for noise. Two disjoint components therefore share the same signal window for analytic errors. Wrapped gates use repeated inclusive bin ranges.
+3. **Measure RM.** Native `rmsynth` computes the longitude-resolved spectra, sums their amplitudes over the component and fits its instrumental response. Its ASCII table gives fitted RM and analytic error. Set `BOOTSTRAP` to a positive draw count (e.g. 500) to add its Gaussian-bootstrap uncertainty. The default is 0. Set `LONGITUDE_FITS = True` to also fit each selected longitude bin with `-long`.
 
-The default output directory is `files_close_to_peri_2e4/`, relative to the notebook’s working directory.
+The default RM grid spans −10,000 to +10,000 rad/m² with 20,000 samples. Set `RM_LOW`, `RM_HIGH`, `RM_STEPS` and `FTOL` to match the comparison run. The default fit tolerance is 0.001. With `FIX_SEED = True`, the notebook passes the native `-fixseed` option.
 
-- `component_rm.csv`, `*.stokes.png` and `*.rm.png` contain the original results and diagnostics. Check the gates and search-boundary flags.
-- `psrsalsa_rm.csv` contains one collapsed fit per region and optional per-bin fits. Compare `rm` with `grid_peak` and inspect the fitted curve for sidelobe solutions. A blank or NaN `sigma_bootstrap` is expected with zero draws.
-- `*.ps.npz` contains the trial grid, archive bin indices, RM-by-bin amplitude array, collapsed spectrum, fitted curve, response frequencies, noise estimates and bootstrap RM draws. The comparison plots appear inline.
+## Inspect and reproduce a result
 
-## Reproducibility
+Each execution creates a new directory under `OUTPUT`. Open the archive’s `gates.png` to check the selected emission and `gates.json` to see the exact bins. Each component directory contains the archive symlink, exact invocation in `command.txt`, native `rmsynth.log`, `input.RMtable`, and native spectrum and RM-map plots (`spectrum.ps` and `map.ps`). Replay the recorded invocation from that directory. A collapsed table has one result, and a longitude table has one row per selected bin.
 
-The reference is [PSRSALSA commit 2efbaf4, 22 February 2022](https://github.com/weltevrede/psrsalsa/tree/2efbaf4592e08fdb76002bbc9dc25e8e4441813b). Match the archive, preprocessing, frequency grid, bin windows, RM grid, fit tolerance and draw count to the C run. The synthetic control checks recovery of an injected RM of +7.5 rad/m², the collapsed spectrum against an independent channel sum, and repeatability at fixed seed. Agreement with the installed OzSTAR binary on a B1259 archive remains unverified. Differences can arise from channel handling, floating-point reductions and the NumPy and GSL random generators.
+The notebook checks the source checkout against [PSRSALSA commit 2efbaf4](https://github.com/weltevrede/psrsalsa/tree/2efbaf4592e08fdb76002bbc9dc25e8e4441813b) and records the executable path and SHA-256 in `binary.json`. A checkout revision alone cannot establish how an untracked executable was built. To reproduce an OzSTAR result, match the executable hash, input archive, gates, native options and runtime environment.
