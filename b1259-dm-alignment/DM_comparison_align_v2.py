@@ -70,9 +70,10 @@ def subband_delays(d, ddm, nsub, up=16):
         lag = ((j + offset) / up + nbin / 2) % nbin - nbin / 2
         snr = ccf[j] / (np.sqrt(len(g)) * np.linalg.norm(tmpl) + 1e-30)   # matched-filter S/N
         a = KDM * (d["freq"][g] ** -2 - d["fref"] ** -2) / d["period"] * nbin  # bins per unit DM
-        res.append((d["freq"][g].mean(), a.mean(), lag, snr))
-    f, a, lag, snr = map(np.array, zip(*res))
-    return dict(f=f, a=a, lag=lag, snr=snr)
+        peak_bin = np.argmax(tmpl) + lag if np.any(T) else np.nan
+        res.append((d["freq"][g].mean(), a.mean(), lag, snr, peak_bin))
+    f, a, lag, snr, peak_bin = map(np.array, zip(*res))
+    return dict(f=f, a=a, lag=lag, snr=snr, peak_bin=peak_bin)
 def line_fit(x, y, sig):
     """Weighted straight-line fit; errors scaled by the actual scatter (chi2/dof)."""
     w = 1 / sig ** 2
@@ -200,7 +201,8 @@ def small_waterfall(d, ddm, nch=64, nb=256):
     for i in np.unique(idx):
         row = wf[idx == i].mean(axis=0)
         image[i] = [row[g].mean() for g in phase_groups]
-    return image, prof
+    phase_edges = np.r_[[g[0] for g in phase_groups], wf.shape[1]] / wf.shape[1]
+    return image, prof, roll, phase_edges, edges
 def process(job):
     path, opt = job
     base = os.path.basename(path)[: -len(opt["ext"])]
@@ -282,11 +284,16 @@ def archive_page(pdf, r):
                                    (axs[1], tops[1], r["wf_pd"], r["sb_pd"], "pdmp DM", "C3")]:
         if W is None:
             top.set_title("pdmp DM not found"); continue
-        wf, prof = W
-        top.plot(np.linspace(0, 1, prof.size, endpoint=False), prof, color=c, lw=0.8)
+        wf, prof, roll, phase_edges, freq_edges = W
+        top.plot((phase_edges[:-1] + phase_edges[1:]) / 2, prof, color=c, lw=0.8)
         top.set_title(lab); top.set_yticks([]); top.tick_params(labelbottom=False)
-        ax.imshow(wf, origin="lower", aspect="auto", cmap="viridis", extent=[0, 1, r["fmin"], r["fmax"]],
-                  vmin=np.nanpercentile(wf, 1), vmax=np.nanpercentile(wf, 99.5))
+        ax.pcolormesh(phase_edges, freq_edges, wf, cmap="viridis", shading="flat", rasterized=True,
+                      vmin=np.nanpercentile(wf, 1), vmax=np.nanpercentile(wf, 99.5))
+        phase = ((sb["peak_bin"] + roll + 0.5) / r["nbin"]) % 1
+        show = u & np.isfinite(phase)
+        ax.plot(phase[show], sb["f"][show], "wx", ms=5, mew=1.2,
+                label="Sub-band arrival phase")
+        ax.set_xlim(0, 1)
         ax.set_xlabel("Pulse phase"); ax.set_ylabel("Frequency (MHz)")
     ms = r["period"] / r["nbin"] * 1e3
     ax = axs[2]
