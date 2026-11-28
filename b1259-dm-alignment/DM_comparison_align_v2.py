@@ -221,7 +221,10 @@ def process(job):
                 except (ValueError, np.linalg.LinAlgError) as exc:
                     row["status"] = str(exc)
             cuts.append(row)
-        pd = run_pdmp(path, opt["outdir"], base, opt["pdmp_args"])
+        extra = opt["pdmp_args"]
+        if opt["pdmp_centre"] is not None:
+            extra = ["-do", format(opt["pdmp_centre"] - d["dm0"], ".15g"), *extra]
+        pd = run_pdmp(path, opt["outdir"], base, extra)
         nbin = d["data"].shape[1]
         sb_al = al["sb"]
         sb_pd = subband_delays(d, pd["dm"] - d["dm0"], opt["nsub"]) if np.isfinite(pd["dm"]) else None
@@ -320,8 +323,12 @@ def main():
     ap.add_argument("--check-fmin", type=float, action="append", default=[],
                     help="repeat alignment above this frequency in MHz (repeatable)")
     ap.add_argument("--jackknife", type=int, default=8, help="interleaved channel groups")
+    ap.add_argument("--pdmp-centre", type=float, help="absolute DM grid centre converted to a per-archive pdmp -do offset")
     ap.add_argument("--pdmp-args", default="", help="quoted extra options passed to pdmp")
     a = ap.parse_args()
+    if a.pdmp_centre is not None and (not np.isfinite(a.pdmp_centre) or
+                                      {"-dm", "-do"}.intersection(shlex.split(a.pdmp_args))):
+        ap.error("--pdmp-centre requires a finite DM and supplies the -do option itself")
     if a.jackknife < 3 or a.nsub < 3 or a.min_snr <= 0 or a.nproc < 1:
         ap.error("require jackknife and nsub >= 3, positive S/N and worker count")
     if a.start_dm is not None and not np.isfinite(a.start_dm):
@@ -333,7 +340,7 @@ def main():
         sys.exit("No files found")
     outdir = a.out + "_pdmp"; os.makedirs(outdir, exist_ok=True)
     opt = dict(ext=a.extension, nsub=a.nsub, min_snr=a.min_snr, outdir=outdir, debug=a.debug,
-               cuts=a.check_fmin, start_dm=a.start_dm, jackknife=a.jackknife, pdmp_args=shlex.split(a.pdmp_args))
+               cuts=a.check_fmin, start_dm=a.start_dm, jackknife=a.jackknife, pdmp_centre=a.pdmp_centre, pdmp_args=shlex.split(a.pdmp_args))
     with open(a.out + "_settings.json", "w") as fh:
         json.dump(vars(a), fh, indent=2)
     if a.debug:
