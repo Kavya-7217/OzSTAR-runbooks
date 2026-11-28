@@ -12,11 +12,11 @@ python DM_comparison_align_v2.py "$archives" .T --debug -o p116_check
 
 python DM_comparison_align_v2.py "$archives" .T \
   -j "${SLURM_CPUS_PER_TASK:-1}" --nsub 16 --min-snr 5 --jackknife 8 \
-  --check-fmin 1400 --pdmp-args="-f -dm 157.5 -dr 17.5 -ds 0.001" \
+  --check-fmin 1400 --pdmp-centre 157.5 --pdmp-args="-f -dr 17.5 -ds 0.001" \
   -o p116_alignment
 ```
 
-The example requests a pdmp grid centred on 157.5, with half-range 17.5 and step 0.001 pc cm⁻³, for the proposed 140–175 cross-check. Inspect the saved pdmp log and plot to confirm the bounds and period search for your installation. Omitting `--pdmp-args` preserves pdmp defaults. The alignment fit has its own starting DM and uses no such search grid. [PSRCHIVE pdmp manual](https://psrchive.readthedocs.io/en/latest/manuals/pdmp.html)
+For the OzSTAR build the wrapper computes `-do` as the requested centre minus the DM read from each archive header. Each raw log records that archive’s offset. The example requests a pdmp grid centred on 157.5, with half-range 17.5 and step 0.001 pc cm⁻³, for the proposed 140–175 cross-check. Inspect the saved pdmp log and plot to confirm the bounds and period search for your installation. Omitting both pdmp options preserves pdmp defaults. The alignment fit has its own starting DM and uses no such search grid. [PSRCHIVE pdmp manual](https://psrchive.readthedocs.io/en/latest/manuals/pdmp.html)
 
 The input search covers one directory level. Use distinct output prefixes per dataset and configuration. `--debug` processes the first sorted archive, prints its fit and cut diagnostics, and saves settings and the pdmp log. The full run also writes tables and the PDF. File names containing `pulse1` or `pulse2` set the plot labels.
 
